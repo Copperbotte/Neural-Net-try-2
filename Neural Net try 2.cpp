@@ -55,35 +55,6 @@ double Sigmoid(double In)
 	return In;
 }
 
-void FProp(int Layers, int* Neuron_Count, double** Neuron, double** Weights)
-{
-	// Forward Propogate
-	// Matrix Multiply: N2 = Sigmoid{ W*N1 }
-	cout << "Forward Propogate\n"; 
-
-	for(int i=1;i<Neuron_Count[0];++i)
-		cout << Neuron[0][i] << ", ";
-	cout << "\n";
-
-	for(int layer=0;layer<Layers-1;++layer)
-	{
-		for(int dst=0;dst<Neuron_Count[layer+1];++dst)
-		{
-			double *T = Neuron[layer+1] + dst; // Target dimension
-			*T = 0.0; // Clear accumulator
-			for(int src=0;src<Neuron_Count[layer];++src) // Matrix multiply
-			{
-				*T += Weights[layer][dst*Neuron_Count[layer]+src]*Neuron[layer][src];
-				cout << Weights[layer][dst*Neuron_Count[layer]+src] << ", ";
-			}
-			*T = Sigmoid(*T);
-			cout << ": " << *T << "\n";
-		}
-		cout << "\n";
-	}
-	//cout << '\n';
-}
-
 void Err(int Layers, int* Neuron_Count, double** Neuron, double** Expected)
 {
 	cout << "Error from Data\n"; 
@@ -106,12 +77,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	//   *   *
 	//  * * * *
 	//     *
-
-	// Matrices should span between neuron layers, connecting the two.
-	// Neurons in a layer have a single extra neuron as a bias, introduced at the matrix level. It is always neuron 0.
-	// This bias does not contribute to inputs, or outputs, but should still be tracked and serialized.
-	for(int i=0;i<Layers-1;++i)
-		Neuron_Count[i]++;
 
 	// Construct initialization
 
@@ -164,21 +129,47 @@ int _tmain(int argc, _TCHAR* argv[])
 			ZeroMemory(Denom[layer],n);
 		}
 
-		//Set initial neuron
-		memcpy(Neuron[0]+1,Initial[0],sizeof(double)*(Neuron_Count[0]-1)); // skip the bias
-		Neuron[0][0] = 1.0;
+		// Setup bias
+		// This value should never change, but should be included in case of errors.
+		for(int layer=0;layer<Layers-1;++layer)
+			Neuron[layer][Neuron_Count[layer]-1] = 1.0;
 
-		FProp(Layers,Neuron_Count,Neuron,Weights);
+		// Forward Propogate
+		// This propogates a neuron's signal forward in the network by one stage.
+		// The bias node should be the final element in the vector, to allow for memory copying and forward propogation without arithmatic.
+		// the bias node is always 1, and should never have backward attached weights.
+		// All cout text in this version has been removed.
+
+		memcpy(Neuron[0],Initial[0],Neuron_Count[0]*sizeof(double));
+		for(int layer=0;layer<Layers-1;++layer)
+			for(int dst=0;dst<Neuron_Count[layer+1];++dst)
+			{
+				double *T = Neuron[layer+1] + dst; // Target node
+				*T = 0.0; // Clear accumulator
+				for(int src=0;src<Neuron_Count[layer]+1;++src) // Matrix multiply, source has bias included.
+					*T += Weights[layer][(Neuron_Count[layer]+1)*dst+src]*Neuron[layer][src];
+				*T = Sigmoid(*T);
+			}
+
+		cout << "Step " << z << '\n';
 		Err(Layers,Neuron_Count,Neuron,Expected);
 
 		// Derivative setup
-		for(int i=0;i<Neuron_Count[Layers-1];++i) // Discrete derivative for the numerator
+		for(int i=0;i<Neuron_Count[Layers-1];++i)
 		{
-			dNum[Layers-1][i] = Neuron[Layers-1][i] - Expected[0][i];
-			dDen[Layers-1][i] = 1.0;
+			dNum[Layers-1][i] = Neuron[Layers-1][i] - Expected[0][i]; // Discrete derivative for the numerator
+			dDen[Layers-1][i] = 1.0; // Multiplicitive null derivative for the denominator
 		}
 
 		// Backward Propogate
+		// This propogate should be one in two steps: propogate weight, then neuron.
+		// These steps may be possible to merge into one step.
+		// dN2/dW = N1, so the weight's derivative is its associated backward neuron.
+		// Weight order doesn't matter.
+		// Includes bias weights.
+		// dN2/dN1 = W, summed over all neurons to that N1.
+		// Excludes bias neuron.
+
 		for(int layer=Layers-2;0<=layer;--layer) // BACKpropogation, doesn't effect the first layer
 		{	// Update Weights & Matrix Multiply: N2' = Sigmoid'{ W*N1 }*WT
 			for(int src=0;src<Neuron_Count[layer];++src) // Loop thorough source neurons last, as they're being accumulated.
