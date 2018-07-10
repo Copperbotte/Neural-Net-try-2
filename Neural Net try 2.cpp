@@ -81,7 +81,7 @@ void FProp(int Layers, int* Neuron_Count, double** Neuron, double** Weights)
 		}
 		cout << "\n";
 	}
-	cout << '\n';
+	//cout << '\n';
 }
 
 void Err(int Layers, int* Neuron_Count, double** Neuron, double** Expected)
@@ -155,7 +155,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	// Initialize backprop cycle
 	// Clear backprop accumulators
-	for(int z=0;z<10;++z)
+	for(int z=0;z<100;++z)
 	{
 		for(int layer=0;layer<Layers-1;++layer)
 		{
@@ -191,8 +191,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					Numer[layer][pos] += Neuron[layer+1][dst]*dNum[layer+1][dst];// This neuron is also the previous layer's derivative.
 					double der = Neuron[layer+1][dst]*dDen[layer+1][dst]; // Derivative is the total derivative up to that point.
 					Denom[layer][pos] += der*der; // Mean square of the derivatives
-					dNum[layer][src] += Weights[layer][pos]*Neuron[layer+1][dst]*dNum[layer+1][dst];
-					dDen[layer][src] += Weights[layer][pos]*Neuron[layer+1][dst]*dDen[layer+1][dst];
+					double dSig = 1-Neuron[layer+1][dst]*Neuron[layer+1][dst];
+					dNum[layer][src] += Weights[layer][pos]*Neuron[layer+1][dst]*dNum[layer+1][dst]*dSig;
+					dDen[layer][src] += Weights[layer][pos]*Neuron[layer+1][dst]*dDen[layer+1][dst]*dSig;
 				}
 			}
 		}
@@ -208,11 +209,12 @@ int _tmain(int argc, _TCHAR* argv[])
 					double num = Numer[layer][pos];
 					double dub = Denom[layer][pos];
 					double rat = num/dub;
- 					Weights[layer][pos] -= num/dub;
+ 					Weights[layer][pos] -= 0.1*num/dub;
 					//cout << Weights[layer][pos] << " ";
 				}
 				//cout << '\n';
 			}
+		cout << '\n';
 	}
 	
 	FProp(Layers,Neuron_Count,Neuron,Weights);
