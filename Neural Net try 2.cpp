@@ -55,35 +55,6 @@ double Sigmoid(double In)
 	return In;
 }
 
-void FProp(int Layers, int* Neuron_Count, double** Neuron, double** Weights)
-{
-	// Forward Propogate
-	// Matrix Multiply: N2 = Sigmoid{ W*N1 }
-	cout << "Forward Propogate\n"; 
-
-	for(int i=1;i<Neuron_Count[0];++i)
-		cout << Neuron[0][i] << ", ";
-	cout << "\n";
-
-	for(int layer=0;layer<Layers-1;++layer)
-	{
-		for(int dst=0;dst<Neuron_Count[layer+1];++dst)
-		{
-			double *T = Neuron[layer+1] + dst; // Target dimension
-			*T = 0.0; // Clear accumulator
-			for(int src=0;src<Neuron_Count[layer];++src) // Matrix multiply
-			{
-				*T += Weights[layer][dst*Neuron_Count[layer]+src]*Neuron[layer][src];
-				cout << Weights[layer][dst*Neuron_Count[layer]+src] << ", ";
-			}
-			*T = Sigmoid(*T);
-			cout << ": " << *T << "\n";
-		}
-		cout << "\n";
-	}
-	//cout << '\n';
-}
-
 void Err(int Layers, int* Neuron_Count, double** Neuron, double** Expected)
 {
 	cout << "Error from Data\n"; 
@@ -107,12 +78,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	//  * * * *
 	//     *
 
-	// Matrices should span between neuron layers, connecting the two.
-	// Neurons in a layer have a single extra neuron as a bias, introduced at the matrix level. It is always neuron 0.
-	// This bias does not contribute to inputs, or outputs, but should still be tracked and serialized.
-	for(int i=0;i<Layers-1;++i)
-		Neuron_Count[i]++;
-
 	// Construct initialization
 
 	double** Weights = new double*[Layers-1]; // Layers can never be zero unless the user forgot their neurons.
@@ -123,19 +88,21 @@ int _tmain(int argc, _TCHAR* argv[])
 	double** dDen = new double*[Layers];
 	for(int i=0;i<Layers-1;++i)
 	{
-		unsigned int n = Neuron_Count[i]*Neuron_Count[i+1];
+		unsigned int n = (Neuron_Count[i]+1)*Neuron_Count[i+1]; // Bias node
 		Weights[i] = new double[n];
 		Numer[i] = new double[n];
 		Denom[i] = new double[n];
 		for(int dst=0;dst<Neuron_Count[i+1];++dst)
-			for(int src=0;src<Neuron_Count[i];++src)
-				Weights[i][dst*Neuron_Count[i]+src] = (xorshfdbl()*2.0)-1.0;
+			for(int src=0;src<Neuron_Count[i]+1;++src)							 // xorshf96 is a random number generator.
+				Weights[i][(Neuron_Count[i]+1)*dst+src] = (xorshfdbl()*2.0)-1.0; // the dbl variant maps the number to 1.0-0.0 with double precision.
 	}
 	for(int i=0;i<Layers;++i)
 	{
-		Neuron[i] = new double[Neuron_Count[i]];
-		dNum[i] = new double[Neuron_Count[i]];
-		dDen[i] = new double[Neuron_Count[i]];
+		int n = Neuron_Count[i];
+		if(i<Layers-1) ++n; // Bias node
+		Neuron[i] = new double[n];
+		dNum[i] = new double[n];
+		dDen[i] = new double[n];
 	}
 
 	// Data Initialization
@@ -144,7 +111,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	double **Expected = new double*[Data_Count];
 	for(int i=0;i<Data_Count;++i)
 	{
-		Initial[i] = new double[Neuron_Count[0]-1]; // Initial value data doesn't include the bias.
+		Initial[i] = new double[Neuron_Count[0]];
 		Expected[i] = new double[Neuron_Count[Layers-1]]; // Expected value is always the same as the final neuron
 	}
 
@@ -155,71 +122,96 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	// Initialize backprop cycle
 	// Clear backprop accumulators
-	for(int z=0;z<100;++z)
+	for(int z=0;z<5;++z)
 	{
+		for(int layer=Layers-2;0<=layer;--layer) // Weights
+			for(int src=0;src<Neuron_Count[layer]+1;++src)
+				for(int dst=0;dst<Neuron_Count[layer+1];++dst)
+				{
+					int pos = (Neuron_Count[layer]+1)*dst+src;
+					Numer[layer][pos] = 0.0;
+					Denom[layer][pos] = 0.0;
+				}
+
+		// Setup bias
+		// This value should never change, but should be included in case of errors.
 		for(int layer=0;layer<Layers-1;++layer)
-		{
-			unsigned int n = Neuron_Count[layer]*Neuron_Count[layer];
-			ZeroMemory(Numer[layer],n);
-			ZeroMemory(Denom[layer],n);
-		}
+			Neuron[layer][Neuron_Count[layer]-1] = 1.0;
 
-		//Set initial neuron
-		memcpy(Neuron[0]+1,Initial[0],sizeof(double)*(Neuron_Count[0]-1)); // skip the bias
-		Neuron[0][0] = 1.0;
+		// Forward Propogate
+		// This propogates a neuron's signal forward in the network by one stage.
+		// The bias node should be the final element in the vector, to allow for memory copying and forward propogation without arithmatic.
+		// the bias node is always 1, and should never have backward attached weights.
+		// All cout text in this version has been removed.
 
-		FProp(Layers,Neuron_Count,Neuron,Weights);
+		memcpy(Neuron[0],Initial[0],Neuron_Count[0]*sizeof(double));
+		for(int layer=0;layer<Layers-1;++layer)
+			for(int dst=0;dst<Neuron_Count[layer+1];++dst)
+			{
+				double *T = Neuron[layer+1] + dst; // Target node
+				*T = 0.0; // Clear accumulator
+				for(int src=0;src<Neuron_Count[layer]+1;++src) // Matrix multiply, source has bias included.
+					*T += Weights[layer][(Neuron_Count[layer]+1)*dst+src]*Neuron[layer][src];
+				*T = Sigmoid(*T);
+			}
+
+		cout << "Step " << z << '\n';
 		Err(Layers,Neuron_Count,Neuron,Expected);
 
 		// Derivative setup
-		for(int i=0;i<Neuron_Count[Layers-1];++i) // Discrete derivative for the numerator
+		for(int i=0;i<Neuron_Count[Layers-1];++i)
 		{
-			dNum[Layers-1][i] = Neuron[Layers-1][i] - Expected[0][i];
-			dDen[Layers-1][i] = 1.0;
+			dNum[Layers-1][i] = Neuron[Layers-1][i] - Expected[0][i]; // Discrete derivative for the numerator
+			dDen[Layers-1][i] = 1.0; // Multiplicitive null derivative for the denominator
 		}
 
 		// Backward Propogate
-		for(int layer=Layers-2;0<=layer;--layer) // BACKpropogation, doesn't effect the first layer
-		{	// Update Weights & Matrix Multiply: N2' = Sigmoid'{ W*N1 }*WT
-			for(int src=0;src<Neuron_Count[layer];++src) // Loop thorough source neurons last, as they're being accumulated.
+		// This propogate should be one in two steps: propogate weight, then neuron.
+		// These steps may be possible to merge into one step.
+		// dN2/dW = N1, so the weight's derivative is its associated backward neuron.
+		// Weight order doesn't matter.
+		// Includes bias weights.
+		// dN2/dN1 = W, summed over all neurons to that N1.
+		// Operation is identical to a transposed matrix multiplication.
+		// Excludes bias neuron, first, and last stage.
+
+		for(int layer=Layers-2;0<layer;--layer) // BACKpropogation, doesn't effect the first layer
+			for(int src=0;src<Neuron_Count[layer];++src) // Loop thorough source neurons first, they're needed for the weights.
 			{	//  D = W*S, W is Transposed
-				dNum[layer][src] = 0.0;
-				dDen[layer][src] = 0.0; // clear derivative accumulators
-				for(int dst=0;dst<Neuron_Count[layer+1];++dst) // Loop through destination neurons first
+				dNum[layer][src] = 0.0; // clear derivative accumulators
+				dDen[layer][src] = 0.0;
+				for(int dst=0;dst<Neuron_Count[layer+1];++dst) // Transposed matrix multiply
 				{	// dW/dN2 = N1, dN1/dN2 = W
-					int pos = dst*Neuron_Count[layer]+src;
-					Numer[layer][pos] += Neuron[layer+1][dst]*dNum[layer+1][dst];// This neuron is also the previous layer's derivative.
-					double der = Neuron[layer+1][dst]*dDen[layer+1][dst]; // Derivative is the total derivative up to that point.
-					Denom[layer][pos] += der*der; // Mean square of the derivatives
+					int pos = Neuron_Count[layer+1]*src+dst;
 					double dSig = 1-Neuron[layer+1][dst]*Neuron[layer+1][dst];
-					dNum[layer][src] += Weights[layer][pos]*Neuron[layer+1][dst]*dNum[layer+1][dst]*dSig;
-					dDen[layer][src] += Weights[layer][pos]*Neuron[layer+1][dst]*dDen[layer+1][dst]*dSig;
+					double der = Weights[layer][pos]*Neuron[layer+1][dst]*dSig;
+					dNum[layer][src] += dNum[layer+1][dst]*der;
+					dDen[layer][src] += dDen[layer+1][dst]*der;
 				}
 			}
-		}
 
+		for(int layer=Layers-2;0<=layer;--layer) // Weights
+			for(int dst=0;dst<Neuron_Count[layer+1];++dst)
+				for(int src=0;src<Neuron_Count[layer]+1;++src)
+				{	// dW/dN2 = N1, dN1/dN2 = W
+					int pos = (Neuron_Count[layer]+1)*dst+src;
+					double dSig = (1-Neuron[layer+1][dst])*Neuron[layer+1][dst];
+					double der = Neuron[layer+1][dst]*dSig;
+					Numer[layer][pos] += dNum[layer+1][dst]*der;
+					der *= dDen[layer+1][dst];
+					Denom[layer][pos] += der*der; // Mean square of the derivatives
+				}
+		
 		// Forward Propogate derivative to update
 		//cout << "BACKPROP\n";
 		for(int layer=0;layer<Layers-1;++layer)
 			for(int dst=0;dst<Neuron_Count[layer+1];++dst)
-			{
-				for(int src=0;src<Neuron_Count[layer];++src)
+				for(int src=0;src<Neuron_Count[layer]+1;++src)
 				{
-					int pos = dst*Neuron_Count[layer]+src;
-					double num = Numer[layer][pos];
-					double dub = Denom[layer][pos];
-					double rat = num/dub;
- 					Weights[layer][pos] -= 0.1*num/dub;
-					//cout << Weights[layer][pos] << " ";
+					int pos = (Neuron_Count[layer]+1)*dst+src;
+					Weights[layer][pos] -= Numer[layer][pos]*0.1;///Denom[layer][pos];
 				}
-				//cout << '\n';
-			}
-		cout << '\n';
 	}
-	
-	FProp(Layers,Neuron_Count,Neuron,Weights);
-	Err(Layers,Neuron_Count,Neuron,Expected);
-
 	// Backward Propogate
 	// N2 = Sigmoid{ W*N1 }
 	// dW/dN1 = N1
