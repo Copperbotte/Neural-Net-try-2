@@ -1,0 +1,57 @@
+Technology roadmap: [== : complete]
+Mobile Fabricator
+  Printer 2
+    Motor housing printing
+    basic Electrical Eng.
+    basic Computer Eng.
+  basic Mechaincal Eng.
+    basic Materials science
+    robust function approximator
+    ==basic AI functionality
+      cura integration
+      topology optomization
+      2nd derivative projection
+      quantum signals
+      neuron flow
+      neuron integration 
+  Physics simulator
+    2nd shipped game
+      employee funding
+      1st shipped game
+        simple mechanics, premade engine, targetting mobile market, ages 15-20.
+        multiplayer and social integration mandatory.
+        "mobile market" is the set of people that dont differentiate websites with computers.
+        think .IO style games
+    simple mechanics, deep and complicated combinations in gameplay.
+      Custom engine, targetting core market, with competitive as a secondary market.
+      ages 13-35.
+    Pristine, mathematically perfect gameplay balance
+    Real time physics engine
+    Real time sound engine
+      Wave audio
+      Directional Audio
+        Head related Transfer functions
+        Pinna filtering effect (tragus too?)
+      Doppler shifting
+      Physics integration
+    Semi-accurate, real time fluid engine
+    Various gameplay engines
+    Real time global illumination
+      Volumetric lighting
+        Lighting
+        ==Energy conservation
+        ==Color space transformation
+          Filmic color space
+          Opitical color space
+        Shadows
+        Fog
+        Sunbeams
+        Two-bounce lighting
+    Integration Supersampling
+    Temportal integration supersampling
+    Model culling
+    Multicore rendering
+    Client-server UDP connections
+
+    
+      
